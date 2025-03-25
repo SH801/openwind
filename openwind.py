@@ -503,7 +503,7 @@ def runSubprocess(subprocess_array):
     Runs subprocess
     """
 
-    output = subprocess.run(subprocess_array, env= {"OGR_GEOJSON_MAX_OBJ_SIZE": "8000"})
+    output = subprocess.run(subprocess_array, env=os.environ | {"OGR_GEOJSON_MAX_OBJ_SIZE": "8000"})
 
     # print("\n" + " ".join(subprocess_array) + "\n")
 

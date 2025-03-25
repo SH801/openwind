@@ -355,12 +355,14 @@ def createSLD(style):
 </StyledLayerDescriptor>
 """
 
-def uploadDataset2GeoNode(dataset_title, dataset_core_path, style):
+def uploadDataset2GeoNode(dataset_title, dataset_core_path, style, wmtsonly=False):
     """
     Uploads single dataset to GeoNode
     """
 
     global GEONODE_BASE_URL, HEIGHT_TO_TIP, ADMIN_USERNAME, ADMIN_PASSWORD
+
+    if wmtsonly: return
 
     LogMessage("Uploading to GeoNode: " + dataset_title)
 
@@ -421,7 +423,7 @@ def uploadDataset2GeoNode(dataset_title, dataset_core_path, style):
             time.sleep(5)
 
 
-def uploadDatasets2GeoNode():
+def uploadDatasets2GeoNode(wmtsonly=False):
     """
     Uploads datasets and groups to GeoNode
     """
@@ -455,11 +457,11 @@ def uploadDatasets2GeoNode():
     for group in style_lookup:
         style['fill'] = group['color']
         style['fill-opacity'] = 0.8
-        dataset_ids_lookup[group['dataset']] = uploadDataset2GeoNode(group['title'], group['dataset'], style)
+        dataset_ids_lookup[group['dataset']] = uploadDataset2GeoNode(group['title'], group['dataset'], style, wmtsonly)
         if 'children' not in group: continue
         for child in group['children']:
             style['fill-opacity'] = 0.4
-            dataset_ids_lookup[child['dataset']] = uploadDataset2GeoNode(child['title'], child['dataset'], style)
+            dataset_ids_lookup[child['dataset']] = uploadDataset2GeoNode(child['title'], child['dataset'], style, wmtsonly)
 
     return dataset_ids_lookup 
 
@@ -574,7 +576,7 @@ def getMapLayerItem(layer_id, geonode_name):
         "visibility": True
     }
 
-def createMapGeoNode(dataset_pks):
+def createMapGeoNode(dataset_pks, wmtsonly=False):
     """
     Creates GeoNode map with hierarchy according to groups
     """
@@ -664,9 +666,10 @@ def createMapGeoNode(dataset_pks):
         LogError("Problem creating map - error code:")
         print(response)
 
-
-datasets_info = uploadDatasets2GeoNode()
-createMapGeoNode(datasets_info)
+WMTS_ONLY = True
+datasets_info = uploadDatasets2GeoNode(WMTS_ONLY)
+print(json.dumps(datasets_info, indent=4))
+# createMapGeoNode(datasets_info, WMTS_ONLY)
 
 print("""
 \033[1;34m***********************************************************************
