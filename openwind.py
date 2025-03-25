@@ -2165,6 +2165,8 @@ def buildTileserverFiles():
         exit()
     output_files.insert(0, overallconstraints)
 
+    tippecanoe_intermediary = 'temp.geojson'
+
     for output_file in output_files:
         if (not output_file.startswith('latest--')) or (not output_file.endswith('.geojson')): continue
 
@@ -2182,6 +2184,13 @@ def buildTileserverFiles():
 
             LogMessage("Creating mbtiles for: " + output_file)
 
+            if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
+            
+            inputs = runSubprocess(["ogr2ogr", \
+                                    "-f", "GeoJSONSeq", \
+                                    tippecanoe_input, \
+                                    "-o", tippecanoe_intermediary ])
+
             inputs = runSubprocess(["tippecanoe", \
                                     "-Z4", "-z15", \
                                     "-X", \
@@ -2189,8 +2198,10 @@ def buildTileserverFiles():
                                     "--force", \
                                     "-n", style_name, \
                                     "-l", dataset_name, \
-                                    tippecanoe_input, \
+                                    tippecanoe_intermediary, \
                                     "-o", tippecanoe_output ])
+
+            if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
 
         if not isfile(tippecanoe_output):
             LogError("Failed to create mbtiles: " + basename(tippecanoe_output))
