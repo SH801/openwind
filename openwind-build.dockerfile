@@ -52,7 +52,7 @@ RUN make install
 # Install tippecanoe
 
 WORKDIR /usr/src/openwind
-RUN git clone https://github.com/mapbox/tippecanoe.git
+RUN git clone https://github.com/felt/tippecanoe.git
 WORKDIR /usr/src/openwind/tippecanoe
 RUN make -j
 RUN make install

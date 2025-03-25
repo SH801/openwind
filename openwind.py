@@ -114,7 +114,7 @@ POSTGRES_DB                     = os.environ.get("POSTGRES_DB")
 POSTGRES_USER                   = os.environ.get("POSTGRES_USER")
 POSTGRES_PASSWORD               = os.environ.get("POSTGRES_PASSWORD")
 DEBUG_RUN                       = False
-OPENMAPTILES_HOSTED_FONTS       = "https://cdn.jsdelivr.net/gh/kylebarron/openmaptiles-fonts/fonts/{fontstack}/{range}.pbf"
+OPENMAPTILES_HOSTED_FONTS       = "https://cdn.jsdelivr.net/gh/open-wind/openmaptiles-fonts/fonts/{fontstack}/{range}.pbf"
 SKIP_FONTS_INSTALLATION         = False
 
 # Redirect ogr2ogr warnings to log file
@@ -2176,7 +2176,7 @@ def buildTileserverFiles():
         exit()
     output_files.insert(0, overallconstraints)
 
-    tippecanoe_intermediary = 'temp.geojson'
+    tippecanoe_intermediary = 'tippecanoe-geojsonseq.geojson'
 
     for output_file in output_files:
         if (not output_file.startswith('latest--')) or (not output_file.endswith('.geojson')): continue
@@ -2191,7 +2191,13 @@ def buildTileserverFiles():
         style_id = dataset_name
         style_name = dataset_style_lookup[dataset_name]['title']
 
-        # midprocessed_file = tippecanoe_output.replace('')
+        # If tippecanoe failed previously for any reason, delete the output and intermediary file
+        
+        tippecanoe_interrupted_file = tippecanoe_output + '-journal'
+        if isfile(tippecanoe_interrupted_file):
+            os.remove(tippecanoe_interrupted_file)
+            if isfile(tippecanoe_output): os.remove(tippecanoe_output)
+
         if not isfile(tippecanoe_output):
 
             LogMessage("Creating mbtiles for: " + output_file)
