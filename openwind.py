@@ -56,6 +56,11 @@ from os.path import isfile, isdir, basename, join, exists
 from ckanapi import RemoteCKAN
 from dotenv import load_dotenv
 
+# Ideally user has created own .env file. If not copy over template
+if not isfile('.env'): 
+    print("Default .env file not found, creating it from template")
+    shutil.copy('.env-template', '.env')
+
 load_dotenv()
 
 BUILD_FOLDER                    = 'build-cli/'
