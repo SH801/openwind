@@ -91,7 +91,7 @@ source venv/bin/activate
 pip install osm-export-tool
 ```
 
-To test everything is working correctly, download a osm-export-tool `yml` config file from https://ckan.wewantwind.org and do the following:
+To test everything is working correctly, download a osm-export-tool `yml` config file from https://data.openwind.energy and do the following:
 ```
 wget https://download.geofabrik.de/europe/britain-and-ireland-latest.osm.pbf
 osm-export-tool britain-and-ireland-latest.osm.pbf osm_download -m [downloaded-yml-name].yml

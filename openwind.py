@@ -1,7 +1,7 @@
 # ***********************************************************
 # *********************** OPEN WIND *************************
 # ***********************************************************
-# ********** Script to convert ckan.wewantwind.org **********
+# ********** Script to convert data.openwind.energy *********
 # ********** data catalogue to composite GIS layers *********
 # ***********************************************************
 # ***********************************************************
@@ -65,13 +65,15 @@ load_dotenv()
 
 BUILD_FOLDER                    = 'build-cli/'
 QGIS_PYTHON_PATH                = '/usr/bin/python3'
-CKAN_URL                        = 'https://ckan.wewantwind.org'
+CKAN_URL                        = 'https://data.openwind.energy'
+TILESERVER_URL                  = 'http://localhost:8080'
 
 # Allow certain variables to be changed using environment variables
 
 if os.environ.get("BUILD_FOLDER") is not None: BUILD_FOLDER = os.environ.get('BUILD_FOLDER')
 if os.environ.get("QGIS_PYTHON_PATH") is not None: QGIS_PYTHON_PATH = os.environ.get('QGIS_PYTHON_PATH')
 if os.environ.get("CKAN_URL") is not None: CKAN_URL = os.environ.get('CKAN_URL')
+if os.environ.get("TILESERVER_URL") is not None: TILESERVER_URL = os.environ.get('TILESERVER_URL')
 
 DEFAULT_HEIGHT_TO_TIP           = 177.55
 HEIGHT_TO_TIP                   = DEFAULT_HEIGHT_TO_TIP
@@ -86,7 +88,7 @@ BUFFER_LOOKUP                   = BUILD_FOLDER + 'datasets-buffers.json'
 STYLE_LOOKUP                    = BUILD_FOLDER + 'datasets-style.json'
 MAPAPP_FOLDER                   = BUILD_FOLDER + 'app/'
 MAPAPP_JS                       = MAPAPP_FOLDER + 'datasets-latest-style.js'
-TILESERVER_URL                  = 'http://localhost:8080'
+
 TILESERVER_FONTS_GITHUB         = 'https://github.com/openmaptiles/fonts'
 TILESERVER_SRC_FOLDER           = 'tileserver/'
 TILESERVER_FOLDER               = BUILD_FOLDER + 'tileserver/'

@@ -362,8 +362,6 @@ def uploadDataset2GeoNode(dataset_title, dataset_core_path, style, wmtsonly=Fals
 
     global GEONODE_BASE_URL, HEIGHT_TO_TIP, ADMIN_USERNAME, ADMIN_PASSWORD
 
-    if wmtsonly: return
-
     LogMessage("Uploading to GeoNode: " + dataset_title)
 
     # Initiate authenticated session
@@ -423,7 +421,7 @@ def uploadDataset2GeoNode(dataset_title, dataset_core_path, style, wmtsonly=Fals
             time.sleep(5)
 
 
-def uploadDatasets2GeoNode(wmtsonly=False):
+def uploadDatasets2GeoNode():
     """
     Uploads datasets and groups to GeoNode
     """
@@ -457,11 +455,11 @@ def uploadDatasets2GeoNode(wmtsonly=False):
     for group in style_lookup:
         style['fill'] = group['color']
         style['fill-opacity'] = 0.8
-        dataset_ids_lookup[group['dataset']] = uploadDataset2GeoNode(group['title'], group['dataset'], style, wmtsonly)
+        dataset_ids_lookup[group['dataset']] = uploadDataset2GeoNode(group['title'], group['dataset'], style)
         if 'children' not in group: continue
         for child in group['children']:
             style['fill-opacity'] = 0.4
-            dataset_ids_lookup[child['dataset']] = uploadDataset2GeoNode(child['title'], child['dataset'], style, wmtsonly)
+            dataset_ids_lookup[child['dataset']] = uploadDataset2GeoNode(child['title'], child['dataset'], style)
 
     return dataset_ids_lookup 
 
@@ -532,6 +530,65 @@ def getLayerItem(group_id, geonode_name, title, dataset_pk, visibility):
 
     return layer_item
 
+def getWMTSLayerItem(group_id, title, dataset_name, visibility, opacity):
+    """
+    Gets JSON for WMTS layer item for use in API
+    """
+
+    global GEOSERVER_BASE_URL
+
+    dataset_name = 'basic'
+    
+    if GEOSERVER_BASE_URL.endswith('/'): GEOSERVER_BASE_URL = GEOSERVER_BASE_URL[:-1]
+
+    uniqueid = str(uuid.uuid4())
+
+    layer_item = {
+        "id": uniqueid,
+        "format": "image/png",
+        "group": group_id,
+        "name": title,
+        "description": title,
+        "style": "default",
+        "title": title,
+        "type": "wmts",
+        "opacity": opacity,
+        "url": "https://tiles.openwind.energy/styles/" + dataset_name + "/256/{TileMatrix}/{TileCol}/{TileRow}.png",
+        "bbox": {
+          "crs": "EPSG:4326",
+            "bounds": {
+                "minx": -8.6500072,
+                "miny": 49.89003787553913,
+                "maxx": 1.62997920879999,
+                "maxy": 60.86077150000001
+            }
+        },
+        "visibility": visibility,
+        "singleTile": False,
+        "allowedSRS": {
+          "EPSG:3857": True
+        },
+        "requestEncoding": "RESTful",
+        "dimensions": [],
+        "hideLoading": False,
+        "handleClickOnLayer": False,
+        "queryable": False,
+        "catalogURL": None,
+        "capabilitiesURL": "https://tiles.openwind.energy/styles/" + dataset_name + "/wmts.xml",
+        "useForElevation": False,
+        "hidden": False,
+        "expanded": False,
+        "params": {},
+        "availableTileMatrixSets": {
+          "GoogleMapsCompatible_256": {
+            "crs": "EPSG:3857",
+            "tileMatrixSetLink": "sources['https://tiles.openwind.energy/styles/" + dataset_name + "/wmts.xml'].tileMatrixSet['GoogleMapsCompatible_256']"
+          }
+        }
+    }
+
+    return layer_item
+
 def getGroupItem(group_id, title, visibility):
     """
     Gets JSON for group item for use in API
@@ -576,7 +633,7 @@ def getMapLayerItem(layer_id, geonode_name):
         "visibility": True
     }
 
-def createMapGeoNode(dataset_pks, wmtsonly=False):
+def createMapGeoNode(dataset_pks):
     """
     Creates GeoNode map with hierarchy according to groups
     """
@@ -666,10 +723,332 @@ def createMapGeoNode(dataset_pks, wmtsonly=False):
         LogError("Problem creating map - error code:")
         print(response)
 
+def createWMTSMapGeoNode():
+    """
+    Creates GeoNode map using only WMTS layers (no data uploads)
+    """
+
+    global HEIGHT_TO_TIP, STYLE_LOOKUP, FINALLAYERS_OUTPUT_FOLDER, GEONODE_BASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD
+
+    # Start off by checking GeoNode is active
+
+    waitForGeoNode()
+
+    # Get style-specific version of dataset hierarchy
+
+    style_lookup = getStyleLookup()
+
+    # Set height to tip from first element in style lookup
+
+    HEIGHT_TO_TIP = float(style_lookup[0]['height-to-tip'])
+
+    LogMessage("Creating GeoNode map...")
+
+    session = requests.Session()
+    session.auth = (ADMIN_USERNAME, ADMIN_PASSWORD)
+
+    # Delete any maps with same name
+
+    name = 'Wind Constraints Map - Tip Height ' + formatValue(HEIGHT_TO_TIP) + 'm'
+
+    url = GEONODE_BASE_URL + "/api/v2/resources/?filter{resource_type}=map"
+    response = session.get(url)
+
+    response_json = json.loads(response.text)
+    for resource in response_json['resources']:
+        if resource['title'].strip() == name.strip():
+            LogMessage("Deleting existing map with same name - id: " + str(resource['pk']))
+            delete_url = GEONODE_BASE_URL + '/api/v2/resources/' + str(resource['pk'])
+            session.delete(delete_url)
+
+    # Generate map
+
+    url = GEONODE_BASE_URL + "/api/v2/maps"
+
+    group_structure = getStyleLookup()
+    layers, output_groups = [], []
+    index = 0
+    for group in group_structure:
+        group_id = str(uuid.uuid4())
+        dataset_name = group['dataset']
+        group_title = group['title']
+        visibility = True
+        if index == 0: visibility = False
+        opacity = 1
+        layers_item = getWMTSLayerItem(group_id, group_title, dataset_name, visibility, opacity)
+        layers.append(layers_item)
+        output_groups.append(getGroupItem(group_id, group_title, visibility))
+        index += 1
+        if 'children' not in group: continue
+        for child in group['children']:
+            dataset_name = child['dataset']
+            child_title = child['title']
+            visibility = False
+            opacity = 0.8
+            layers_item = getWMTSLayerItem(group_id, child_title, dataset_name, visibility, opacity)
+            layers.append(layers_item)
+
+    FINAL_PAYLOAD = {
+        'abstract': name,
+        'title': name,
+        "data": {
+            "version": 2,
+            "toc": {},
+            "widgetsConfig": {
+                "widgets": [],
+                "layouts": {
+                    "md": [],
+                    "xxs": []
+                }
+            },
+            "mapInfoConfiguration": {},
+            "featureGrid": {},
+            "dimensionData": {},
+            "timelineData": {
+                "snapRadioButtonEnabled": False
+            },
+            "playback": {
+                "settings": {
+                    "timeStep": 1,
+                    "stepUnit": "days",
+                    "frameDuration": 2,
+                    "following": True
+                }
+            },
+            "catalogServices": {
+                "services": {},
+                "selectedService": ""
+            },
+            "map": {
+                "center": {
+                    "x": -3.289375305175791,
+                    "y": 55.21478183186432,
+                    "crs": "EPSG:4326"
+                },                
+                "layers": layers[::-1],
+                "groups": output_groups,
+                "backgrounds": [],
+                "mapOptions": {},
+                "projection": "EPSG:3857",
+                "units": "m",
+                "zoom": 6,
+                "maxExtent": [
+                    -20037508.34,
+                    -20037508.34,
+                    20037508.34,
+                    20037508.34
+                ],
+                "sources": {
+                    "https://tiles.openwind.energy/styles/basic/wmts.xml": {
+                        "tileMatrixSet": {
+                            "GoogleMapsCompatible_256": {
+                                "ows:Title": "GoogleMapsCompatible_256",
+                                "TileMatrix": [
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "1",
+                                        "MatrixHeight": "1",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "0",
+                                        "ScaleDenominator": "559082264.02872"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "2",
+                                        "MatrixHeight": "2",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "1",
+                                        "ScaleDenominator": "279541132.01436"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "4",
+                                        "MatrixHeight": "4",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "2",
+                                        "ScaleDenominator": "139770566.00718"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "8",
+                                        "MatrixHeight": "8",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "3",
+                                        "ScaleDenominator": "69885283.00359"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "16",
+                                        "MatrixHeight": "16",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "4",
+                                        "ScaleDenominator": "34942641.501795"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "32",
+                                        "MatrixHeight": "32",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "5",
+                                        "ScaleDenominator": "17471320.750897"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "64",
+                                        "MatrixHeight": "64",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "6",
+                                        "ScaleDenominator": "8735660.3754487"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "128",
+                                        "MatrixHeight": "128",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "7",
+                                        "ScaleDenominator": "4367830.1877244"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "256",
+                                        "MatrixHeight": "256",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "8",
+                                        "ScaleDenominator": "2183915.0938622"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "512",
+                                        "MatrixHeight": "512",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "9",
+                                        "ScaleDenominator": "1091957.5469311"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "1024",
+                                        "MatrixHeight": "1024",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "10",
+                                        "ScaleDenominator": "545978.77346554"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "2048",
+                                        "MatrixHeight": "2048",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "11",
+                                        "ScaleDenominator": "272989.38673277"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "4096",
+                                        "MatrixHeight": "4096",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "12",
+                                        "ScaleDenominator": "136494.69336639"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "8192",
+                                        "MatrixHeight": "8192",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "13",
+                                        "ScaleDenominator": "68247.346683193"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "16384",
+                                        "MatrixHeight": "16384",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "14",
+                                        "ScaleDenominator": "34123.673341597"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "32768",
+                                        "MatrixHeight": "32768",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "15",
+                                        "ScaleDenominator": "17061.836670798"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "65536",
+                                        "MatrixHeight": "65536",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "16",
+                                        "ScaleDenominator": "8530.9183353991"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "131072",
+                                        "MatrixHeight": "131072",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "17",
+                                        "ScaleDenominator": "4265.4591676996"
+                                    },
+                                    {
+                                        "TileWidth": "256",
+                                        "TileHeight": "256",
+                                        "MatrixWidth": "262144",
+                                        "MatrixHeight": "262144",
+                                        "TopLeftCorner": "-20037508.34 20037508.34",
+                                        "ows:Identifier": "18",
+                                        "ScaleDenominator": "2132.7295838498"
+                                    }
+                                ],
+                                "ows:Abstract": "GoogleMapsCompatible_256 EPSG:3857",
+                                "ows:Identifier": "GoogleMapsCompatible_256",
+                                "ows:SupportedCRS": "urn:ogc:def:crs:EPSG::3857"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "maplayers": []
+    }
+
+    LogMessage("Submitting create WMTS-only map request")
+
+    session = requests.Session()
+    session.auth = (ADMIN_USERNAME, ADMIN_PASSWORD)
+
+    url = GEONODE_BASE_URL + "/api/v2/maps"
+
+    response = session.post(url, json=FINAL_PAYLOAD)
+    if response.status_code == 201: 
+        LogMessage("Map request finished submitting successfully", )
+    else:
+        LogError("Problem creating map - error code:")
+        print(response)
+
+
 WMTS_ONLY = True
-datasets_info = uploadDatasets2GeoNode(WMTS_ONLY)
-print(json.dumps(datasets_info, indent=4))
-# createMapGeoNode(datasets_info, WMTS_ONLY)
+if WMTS_ONLY:
+    createWMTSMapGeoNode()
+else:
+    datasets_info = uploadDatasets2GeoNode()
+    createMapGeoNode(datasets_info)
 
 print("""
 \033[1;34m***********************************************************************
