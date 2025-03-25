@@ -114,6 +114,8 @@ POSTGRES_DB                     = os.environ.get("POSTGRES_DB")
 POSTGRES_USER                   = os.environ.get("POSTGRES_USER")
 POSTGRES_PASSWORD               = os.environ.get("POSTGRES_PASSWORD")
 DEBUG_RUN                       = False
+OPENMAPTILES_HOSTED_FONTS       = "https://cdn.jsdelivr.net/gh/kylebarron/openmaptiles-fonts/fonts/{fontstack}/{range}.pbf"
+SKIP_FONTS_INSTALLATION         = False
 
 # Redirect ogr2ogr warnings to log file
 os.environ['CPL_LOG'] = 'log.txt'
@@ -2049,7 +2051,7 @@ def buildTileserverFiles():
 
     global  OVERALL_CLIPPING_FILE, TILESERVER_URL, TILESERVER_FONTS_GITHUB, TILESERVER_SRC_FOLDER, TILESERVER_FOLDER, TILESERVER_DATA_FOLDER, TILESERVER_STYLES_FOLDER, \
             OSM_MAIN_DOWNLOAD, BUILD_FOLDER, FINALLAYERS_OUTPUT_FOLDER, FINALLAYERS_CONSOLIDATED, MAPAPP_FOLDER
-    global  TILEMAKER_COASTLINE_CONFIG, TILEMAKER_COASTLINE_PROCESS, TILEMAKER_OMT_CONFIG, TILEMAKER_OMT_PROCESS
+    global  TILEMAKER_COASTLINE_CONFIG, TILEMAKER_COASTLINE_PROCESS, TILEMAKER_OMT_CONFIG, TILEMAKER_OMT_PROCESS, SKIP_FONTS_INSTALLATION, OPENMAPTILES_HOSTED_FONTS
 
     # Run tileserver build process
 
@@ -2058,8 +2060,6 @@ def buildTileserverFiles():
     makeFolder(TILESERVER_FOLDER)
     makeFolder(TILESERVER_DATA_FOLDER)
     makeFolder(TILESERVER_STYLES_FOLDER)
-
-    installTileserverFonts()
 
     # Copy 'sprites' folder
 
@@ -2076,7 +2076,16 @@ def buildTileserverFiles():
     openmaptiles_style_file_dst = TILESERVER_STYLES_FOLDER + 'openmaptiles.json'
     openmaptiles_style_json = getJSON(openmaptiles_style_file_src)    
     openmaptiles_style_json['sources']['openmaptiles']['url'] = TILESERVER_URL + '/data/openmaptiles.json'
-    openmaptiles_style_json['glyphs'] = TILESERVER_URL + '/fonts/{fontstack}/{range}.pbf'
+
+    # Either use hosted version of fonts or install local fonts folder
+
+    if SKIP_FONTS_INSTALLATION: 
+        fonts_url = OPENMAPTILES_HOSTED_FONTS
+    else: 
+        installTileserverFonts()
+        fonts_url = TILESERVER_URL + '/fonts/{fontstack}/{range}.pbf'
+
+    openmaptiles_style_json['glyphs'] = fonts_url
 
     with open(openmaptiles_style_file_dst, "w") as json_file: json.dump(openmaptiles_style_json, json_file, indent=4)
 
@@ -2230,7 +2239,7 @@ def buildTileserverFiles():
                     "attribution": attribution
                 }
             },
-            "glyphs": TILESERVER_URL + "/fonts/{fontstack}/{range}.pbf",
+            "glyphs": fonts_url,
             "layers": [
                 {
                     "id": style_id,
@@ -2320,6 +2329,7 @@ def buildQGISFile():
 # -purgederived         Clear all derived (ie. non-core data) PostGIS tables and reexport final layer files
 # -purgeamalgamated     Clear all amalgamted PostGIS tables and reexport final layer files
 # -skipdownload         Skip download stage and just do PostGIS processing
+# -skipfonts            Skip font installation stage and use hosted version of openmaptiles fonts
 # -regenerate dataset   Regenerates specific dataset by redownloading and recreating all tables relating to dataset
 # -buildtileserver      (Re)builds files for tileserver
 
@@ -2360,6 +2370,10 @@ if len(sys.argv) > 1:
         if arg == '-skipdownload':
             LogMessage("-skipdownload argument passed: Skipping download stage")
             PERFORM_DOWNLOAD = False
+
+        if arg == '-skipfonts':
+            LogMessage("-skipfonts argument passed: Skipping font installation and using hosted CDN fonts")
+            SKIP_FONTS_INSTALLATION = True
 
         if arg == '-buildtileserver':
             LogMessage("-buildtileserver argument passed: Building files required for tileserver")
