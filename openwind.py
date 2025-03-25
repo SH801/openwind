@@ -503,7 +503,7 @@ def runSubprocess(subprocess_array):
     Runs subprocess
     """
 
-    output = subprocess.run(subprocess_array)
+    output = subprocess.run(subprocess_array, env= {"OGR_GEOJSON_MAX_OBJ_SIZE": "8000"})
 
     # print("\n" + " ".join(subprocess_array) + "\n")
 
@@ -2187,8 +2187,7 @@ def buildTileserverFiles():
 
             if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
             
-            inputs = runSubprocess(["OGR_GEOJSON_MAX_OBJ_SIZE=8000", \
-                                    "ogr2ogr", \
+            inputs = runSubprocess(["ogr2ogr", \
                                     "-f", "GeoJSONSeq", \
                                     tippecanoe_intermediary, \
                                     tippecanoe_input ])
