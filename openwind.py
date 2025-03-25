@@ -2180,16 +2180,18 @@ def buildTileserverFiles():
         style_id = dataset_name
         style_name = dataset_style_lookup[dataset_name]['title']
 
+        # midprocessed_file = tippecanoe_output.replace('')
         if not isfile(tippecanoe_output):
 
             LogMessage("Creating mbtiles for: " + output_file)
 
             if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
             
-            inputs = runSubprocess(["ogr2ogr", \
+            inputs = runSubprocess(["OGR_GEOJSON_MAX_OBJ_SIZE=8000", \
+                                    "ogr2ogr", \
                                     "-f", "GeoJSONSeq", \
-                                    tippecanoe_input, \
-                                    "-o", tippecanoe_intermediary ])
+                                    tippecanoe_intermediary, \
+                                    tippecanoe_input ])
 
             inputs = runSubprocess(["tippecanoe", \
                                     "-Z4", "-z15", \
