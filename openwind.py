@@ -797,7 +797,7 @@ def deleteDatasetFiles(dataset):
 
     global HEIGHT_TO_TIP, DATASETS_DOWNLOADS_FOLDER, FINALLAYERS_OUTPUT_FOLDER, TILESERVER_DATA_FOLDER
 
-    possible_extensions = ['geojson', 'gpkg', 'shp', 'shx', 'dbf', 'prj', 'mbtiles', 'sld']
+    possible_extensions = ['geojson', 'gpkg', 'shp', 'shx', 'dbf', 'prj', 'sld', 'mbtiles']
 
     table = reformatTableName(dataset)
     height_to_tip_text = formatValue(HEIGHT_TO_TIP).replace('.', '-') + 'm'
