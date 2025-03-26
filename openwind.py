@@ -75,7 +75,7 @@ if os.environ.get("QGIS_PYTHON_PATH") is not None: QGIS_PYTHON_PATH = os.environ
 if os.environ.get("CKAN_URL") is not None: CKAN_URL = os.environ.get('CKAN_URL')
 if os.environ.get("TILESERVER_URL") is not None: TILESERVER_URL = os.environ.get('TILESERVER_URL')
 
-DEFAULT_HEIGHT_TO_TIP           = 177.55
+DEFAULT_HEIGHT_TO_TIP           = 124.25 # Based on openwind's own manual data on all failed and successful UK onshore wind projects
 HEIGHT_TO_TIP                   = DEFAULT_HEIGHT_TO_TIP
 OSM_MAIN_DOWNLOAD               = 'https://download.geofabrik.de/europe/united-kingdom-latest.osm.pbf'
 OSM_CONFIG_FOLDER               = BUILD_FOLDER + 'osm-export-yml/'
@@ -2284,7 +2284,7 @@ def buildTileserverFiles():
                                     tippecanoe_grid_clipped_file, \
                                     "-o", tippecanoe_output ])
 
-            if isfile(tippecanoe_grid_clipped_file): os.remove(tippecanoe_grid_clipped_file)
+            # if isfile(tippecanoe_grid_clipped_file): os.remove(tippecanoe_grid_clipped_file)
 
         if not isfile(tippecanoe_output):
             LogError("Failed to create mbtiles: " + basename(tippecanoe_output))
@@ -2458,11 +2458,11 @@ Possible additional arguments:
 --purgeall             Clear all downloads and database tables as if starting fresh
 --purgedb              Clear all PostGIS tables and reexport final layer files
 --purgederived         Clear all derived (ie. non-core data) PostGIS tables and reexport final layer files
---purgeamalgamated     Clear all amalgamted PostGIS tables and reexport final layer files
+--purgeamalgamated     Clear all amalgamated PostGIS tables and reexport final layer files
 --skipdownload         Skip download stage and just do PostGIS processing
 --skipfonts            Skip font installation stage and use hosted version of openmaptiles fonts
---regenerate dataset   Regenerates specific dataset by redownloading and recreating all tables relating to dataset
---buildtileserver      (Re)build files for tileserver
+--regenerate dataset   Regenerate specific dataset by redownloading and recreating all tables relating to dataset
+--buildtileserver      Rebuild files for tileserver
 
 """)
             exit()
