@@ -107,7 +107,7 @@ FINALLAYERS_CONSOLIDATED        = 'windconstraints'
 PERFORM_DOWNLOAD                = True
 REGENERATE_INPUT                = False
 REGENERATE_OUTPUT               = False
-OVERALL_CLIPPING_FILE           = 'uk-clipping.gpkg'
+OVERALL_CLIPPING_FILE           = 'uk--clipping.gpkg'
 WORKING_CRS                     = 'EPSG:4326'
 POSTGRES_HOST                   = os.environ.get("POSTGRES_HOST")
 POSTGRES_DB                     = os.environ.get("POSTGRES_DB")
@@ -116,6 +116,12 @@ POSTGRES_PASSWORD               = os.environ.get("POSTGRES_PASSWORD")
 DEBUG_RUN                       = False
 OPENMAPTILES_HOSTED_FONTS       = "https://cdn.jsdelivr.net/gh/open-wind/openmaptiles-fonts/fonts/{fontstack}/{range}.pbf"
 SKIP_FONTS_INSTALLATION         = False
+
+# Output grid is used to cut up final output into grid squares 
+# in order to improve quality and performance of rendering 
+
+OUTPUT_GRID_SPACING             = 100000 # Size of grid squares in metres, ie. 100km
+OUTPUT_GRID_TABLE               = 'uk__output_grid__100000_m'
 
 # Redirect ogr2ogr warnings to log file
 os.environ['CPL_LOG'] = 'log.txt'
@@ -439,8 +445,12 @@ def postgisDropAmalgamatedTables():
 
 def postgisAmalgamateAndDissolve(target_table, child_tables):
     """
-    Amalgamates and dissolves all child tables into target table
+    Amalgamates and dissolves all child tables into target table 
     """
+
+    # Delete any tables and files that are derived from this table
+
+    deleteDataset(target_table)
 
     scratch_table_1 = '_scratch_table_1'
     scratch_table_2 = '_scratch_table_2'
@@ -452,6 +462,8 @@ def postgisAmalgamateAndDissolve(target_table, child_tables):
 
     if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
     if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+
+    LogMessage("Starting amalgamation and dissolving for: " + target_table)
 
     LogMessage(" --> Step 1: Amalgamate and dump all tables")
     postgisExec("CREATE TABLE %s AS SELECT (ST_Dump(children.geom)).geom geom FROM (%s) AS children;", \
@@ -706,6 +718,19 @@ def formatValue(value):
 
     return str(round(value, 1)).replace('.0', '')
 
+def getOriginalTable(table_name):
+    """
+    Gets original table used to generate output file
+    """
+
+    global HEIGHT_TO_TIP
+
+    original_table_name = reformatTableName(table_name).replace("latest__", "")
+
+    if 'tipheight' not in original_table_name: original_table_name = buildFinalLayerTableName(original_table_name)
+
+    return original_table_name
+
 def getCoreDatasetName(file_path):
     """
     Gets core dataset name from file path
@@ -772,7 +797,7 @@ def deleteDatasetFiles(dataset):
 
     global HEIGHT_TO_TIP, DATASETS_DOWNLOADS_FOLDER, FINALLAYERS_OUTPUT_FOLDER, TILESERVER_DATA_FOLDER
 
-    possible_extensions = ['geojson', 'gpkg', 'shp', 'shx', 'dbf', 'prj', 'mbtiles']
+    possible_extensions = ['geojson', 'gpkg', 'shp', 'shx', 'dbf', 'prj', 'mbtiles', 'sld']
 
     table = reformatTableName(dataset)
     height_to_tip_text = formatValue(HEIGHT_TO_TIP).replace('.', '-') + 'm'
@@ -788,7 +813,7 @@ def deleteDatasetFiles(dataset):
 
         for possible_file in possible_files:
             if isfile(possible_file): 
-                LogMessage("Deleting: " + possible_file)
+                LogMessage(" --> Deleting: " + possible_file)
                 os.remove(possible_file)
 
 def deleteDatasetTables(dataset):
@@ -810,7 +835,7 @@ def deleteDatasetTables(dataset):
 
     for possible_table in possible_tables:
         if postgisCheckTableExists(possible_table):
-            LogMessage("Dropping PostGIS table: " + possible_table)
+            LogMessage(" --> Dropping PostGIS table: " + possible_table)
             postgisDropTable(possible_table)
 
 def deleteDataset(dataset):
@@ -1581,6 +1606,31 @@ def purgeall():
 
         shutil.rmtree(subfolder_absolute)
 
+def createGridClippedFile(table_name, dataset_name, file_path):
+    """
+    Create grid clipped version of file to improve rendering and performance when used as mbtiles
+    """
+
+    global OUTPUT_GRID_TABLE
+
+    scratch_table_1 = '_scratch_table_1'
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+
+    postgisExec("CREATE TABLE %s AS SELECT (ST_Dump(ST_Intersection(layer.geom, grid.geom))).geom geom FROM %s layer, %s grid;", \
+                (AsIs(scratch_table_1), AsIs(table_name), AsIs(OUTPUT_GRID_TABLE), ))
+
+    inputs = runSubprocess(["ogr2ogr", \
+                    file_path, \
+                    'PG:host=' + POSTGRES_HOST + ' user=' + POSTGRES_USER + ' password=' + POSTGRES_PASSWORD + ' dbname=' + POSTGRES_DB, \
+                    "-overwrite", \
+                    "-nln", dataset_name, \
+                    scratch_table_1, \
+                    "-s_srs", WORKING_CRS, \
+                    "-t_srs", 'EPSG:4326'])
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+
 def processdownloads(output_folder):
     """
     Processes folder of GeoJSON files
@@ -1594,6 +1644,7 @@ def processdownloads(output_folder):
     global DEBUG_RUN, HEIGHT_TO_TIP, WORKING_CRS, BUILD_FOLDER, OSM_MAIN_DOWNLOAD, OSM_EXPORT_DATA
     global FINALLAYERS_OUTPUT_FOLDER, FINALLAYERS_CONSOLIDATED, OVERALL_CLIPPING_FILE, REGENERATE_INPUT, REGENERATE_OUTPUT
     global POSTGRES_HOST, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+    global OUTPUT_GRID_SPACING, OUTPUT_GRID_TABLE
     global QGIS_OUTPUT_FILE
 
     if REGENERATE_INPUT: REGENERATE_OUTPUT = True
@@ -1610,10 +1661,13 @@ def processdownloads(output_folder):
     # Import UK clipping into PostGIS
 
     clipping_table = reformatTableName(OVERALL_CLIPPING_FILE)
+
     if not postgisCheckTableExists(clipping_table):
+
         LogMessage("Importing into PostGIS: " + OVERALL_CLIPPING_FILE)
 
         clipping_file_projection = getGPKGProjection(OVERALL_CLIPPING_FILE)
+
         runSubprocess([ "ogr2ogr", \
                         "-f", "PostgreSQL", \
                         'PG:host=' + POSTGRES_HOST + ' user=' + POSTGRES_USER + ' password=' + POSTGRES_PASSWORD + ' dbname=' + POSTGRES_DB, \
@@ -1626,11 +1680,23 @@ def processdownloads(output_folder):
                         "-t_srs", WORKING_CRS]) 
 
     clipping_union_table = buildUnionTableName(clipping_table)
+
     if not postgisCheckTableExists(clipping_union_table):
+
         LogMessage("Running ST_Union within PostGIS: " + clipping_table + " -> " + clipping_union_table)
+
         postgisExec("CREATE TABLE %s AS SELECT ST_Union(geom) geom FROM %s", \
                     (AsIs(clipping_union_table), AsIs(clipping_table), ))
         postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(clipping_union_table + "_idx"), AsIs(clipping_union_table), ))
+
+    # Create output grid
+
+    if not postgisCheckTableExists(OUTPUT_GRID_TABLE):
+
+        LogMessage("Creating output grid overlay to improve performance and rendering quality")
+
+        postgisExec("CREATE TABLE %s AS SELECT (ST_SquareGrid(%s, ST_Transform(geom, 3857))).* FROM %s;", 
+                    (AsIs(OUTPUT_GRID_TABLE), AsIs(OUTPUT_GRID_SPACING), AsIs(clipping_union_table), ))
 
     # Import OSM-specific data files
 
@@ -1807,7 +1873,7 @@ def processdownloads(output_folder):
 
                     LogMessage(" --> Step 4: Dumping and removing non-polygons")
 
-                    postgisExec("CREATE TABLE %s AS SELECT dumped.geom FROM (SELECT (ST_Dump(geom)).geom geom FROM %s) AS dumped WHERE ST_geometrytype(dumped.geom) = 'ST_Polygon';", (AsIs(processed_table), AsIs(scratch_table_2), ))
+                    postgisExec("CREATE TABLE %s AS SELECT dumped.geom FROM (SELECT (ST_Dump(ST_Union(geom))).geom geom FROM %s) AS dumped WHERE ST_geometrytype(dumped.geom) = 'ST_Polygon';", (AsIs(processed_table), AsIs(scratch_table_2), ))
                     postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(processed_table + "_idx"), AsIs(processed_table), ))
 
                     if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
@@ -2043,7 +2109,6 @@ def installTileserverFonts():
 
             shutil.copytree(tileserver_font_folder_src, tileserver_font_folder)
 
-
 def buildTileserverFiles():
     """
     Builds files required for tileserver-gl
@@ -2176,15 +2241,14 @@ def buildTileserverFiles():
         exit()
     output_files.insert(0, overallconstraints)
 
-    tippecanoe_intermediary = 'tippecanoe-geojsonseq.geojson'
-
     for output_file in output_files:
         if (not output_file.startswith('latest--')) or (not output_file.endswith('.geojson')): continue
 
-        tippecanoe_input = FINALLAYERS_OUTPUT_FOLDER + output_file 
         tippecanoe_output = TILESERVER_DATA_FOLDER + output_file.replace('.geojson', '.mbtiles')
         dataset_name = reformatDatasetName(output_file)
         core_dataset_name = getCoreDatasetName(dataset_name)
+        table_name = reformatTableName(dataset_name)
+        original_table_name = getOriginalTable(table_name)
 
         if dataset_name not in dataset_style_lookup: continue
 
@@ -2198,41 +2262,29 @@ def buildTileserverFiles():
             os.remove(tippecanoe_interrupted_file)
             if isfile(tippecanoe_output): os.remove(tippecanoe_output)
 
-        if not isfile(tippecanoe_output):
+        # Create grid-clipped version of GeoJSON to input into tippecanoe to improve mbtiles rendering and performance
 
+        if not isfile(tippecanoe_output):
+    
             LogMessage("Creating mbtiles for: " + output_file)
 
-            # if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
-            
-            # inputs = runSubprocess(["ogr2ogr", \
-            #                         "-f", "GeoJSONSeq", \
-            #                         tippecanoe_intermediary, \
-            #                         tippecanoe_input ])
+            tippecanoe_grid_clipped_file = 'tippecanoe--grid-clipped--temp.geojson'
 
-            # inputs = runSubprocess(["tippecanoe", \
-            #                         "-Z4", "-z15", \
-            #                         "-X", \
-            #                         "--generate-ids", \
-            #                         "--force", \
-            #                         "-pt", \
-            #                         "-n", style_name, \
-            #                         "-l", dataset_name, \
-            #                         tippecanoe_intermediary, \
-            #                         "-o", tippecanoe_output ])
+            if isfile(tippecanoe_grid_clipped_file): os.remove(tippecanoe_grid_clipped_file)
 
-            # if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
+            createGridClippedFile(original_table_name, core_dataset_name, tippecanoe_grid_clipped_file)
 
             inputs = runSubprocess(["tippecanoe", \
                                     "-Z4", "-z15", \
                                     "-X", \
                                     "--generate-ids", \
                                     "--force", \
-                                    "-pt", \
                                     "-n", style_name, \
                                     "-l", dataset_name, \
-                                    tippecanoe_input, \
+                                    tippecanoe_grid_clipped_file, \
                                     "-o", tippecanoe_output ])
 
+            if isfile(tippecanoe_grid_clipped_file): os.remove(tippecanoe_grid_clipped_file)
 
         if not isfile(tippecanoe_output):
             LogError("Failed to create mbtiles: " + basename(tippecanoe_output))
@@ -2340,18 +2392,6 @@ def buildQGISFile():
 
         runSubprocessAndOutput([QGIS_PYTHON_PATH, 'build-qgis.py', QGIS_OUTPUT_FILE])
 
-
-# Acceptable arguments
-# [float]               HEIGHT_TO_TIP. If not provided, uses default DEFAULT_HEIGHT_TO_TIP
-# -purgeall             Clear all downloads and database tables as if starting fresh
-# -purgedb              Clear all PostGIS tables and reexport final layer files
-# -purgederived         Clear all derived (ie. non-core data) PostGIS tables and reexport final layer files
-# -purgeamalgamated     Clear all amalgamted PostGIS tables and reexport final layer files
-# -skipdownload         Skip download stage and just do PostGIS processing
-# -skipfonts            Skip font installation stage and use hosted version of openmaptiles fonts
-# -regenerate dataset   Regenerates specific dataset by redownloading and recreating all tables relating to dataset
-# -buildtileserver      (Re)builds files for tileserver
-
 LogMessage("Starting openwind data pipeline...")
 
 postgisWaitRunning()
@@ -2364,46 +2404,68 @@ if len(sys.argv) > 1:
             HEIGHT_TO_TIP = float(arg)
             LogMessage("************ Using HEIGHT_TO_TIP: " + formatValue(HEIGHT_TO_TIP) + ' metres ************')
 
-        if arg == '-purgeall':
-            LogMessage("-purgeall argument passed: Clearing database and all build files")
+        if arg == '--purgeall':
+            LogMessage("--purgeall argument passed: Clearing database and all build files")
             REGENERATE_INPUT = True
             REGENERATE_OUTPUT = True
             purgeall()
 
-        if arg == '-purgedb':
-            LogMessage("-purgedb argument passed: Clearing database")
+        if arg == '--purgedb':
+            LogMessage("--purgedb argument passed: Clearing database")
             REGENERATE_INPUT = True
             REGENERATE_OUTPUT = True
             postgisDropAllTables()
 
-        if arg == '-purgederived':
-            LogMessage("-purgederived argument passed: Clearing derived database tables")
+        if arg == '--purgederived':
+            LogMessage("--purgederived argument passed: Clearing derived database tables")
             REGENERATE_OUTPUT = True
             postgisDropDerivedTables()
 
-        if arg == '-purgeamalgamated':
-            LogMessage("-purgeamalgamated argument passed: Clearing amalgamated database tables")
+        if arg == '--purgeamalgamated':
+            LogMessage("--purgeamalgamated argument passed: Clearing amalgamated database tables")
             REGENERATE_OUTPUT = True
             postgisDropAmalgamatedTables()
 
-        if arg == '-skipdownload':
-            LogMessage("-skipdownload argument passed: Skipping download stage")
+        if arg == '--skipdownload':
+            LogMessage("--skipdownload argument passed: Skipping download stage")
             PERFORM_DOWNLOAD = False
 
-        if arg == '-skipfonts':
-            LogMessage("-skipfonts argument passed: Skipping font installation and using hosted CDN fonts")
+        if arg == '--skipfonts':
+            LogMessage("--skipfonts argument passed: Skipping font installation and using hosted CDN fonts")
             SKIP_FONTS_INSTALLATION = True
 
-        if arg == '-buildtileserver':
-            LogMessage("-buildtileserver argument passed: Building files required for tileserver")
+        if arg == '--buildtileserver':
+            LogMessage("--buildtileserver argument passed: Building files required for tileserver")
             buildTileserverFiles()
             exit()
 
-        if arg == '-regenerate':
+        if arg == '--regenerate':
             if len(sys.argv) > arg_index:
                 regeneratedataset = sys.argv[arg_index + 1]
                 LogMessage("-regenerate argument passed: Redownloading and rebuilding all tables related to " + regeneratedataset)
                 deleteDataset(regeneratedataset)
+
+        if arg == '--help':
+            print("""
+Command syntax:
+                  
+python3 openwind.py [HEIGHT TO TIP]
+                  
+Where 'HEIGHT TO TIP' is height to tip in metres of target wind turbine.
+                  
+Possible additional arguments:
+
+--purgeall             Clear all downloads and database tables as if starting fresh
+--purgedb              Clear all PostGIS tables and reexport final layer files
+--purgederived         Clear all derived (ie. non-core data) PostGIS tables and reexport final layer files
+--purgeamalgamated     Clear all amalgamted PostGIS tables and reexport final layer files
+--skipdownload         Skip download stage and just do PostGIS processing
+--skipfonts            Skip font installation stage and use hosted version of openmaptiles fonts
+--regenerate dataset   Regenerates specific dataset by redownloading and recreating all tables relating to dataset
+--buildtileserver      (Re)build files for tileserver
+
+""")
+            exit()
 
         arg_index += 1
 

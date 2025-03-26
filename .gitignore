@@ -7,6 +7,7 @@ log.txt
 *.pbf
 *.gpkg
 *.gpkg-journal
+*.qmd
 britain-and-ireland-latest.osm.pbf
 app/node_modules
 build-cli/
@@ -25,6 +26,7 @@ uk-clipping.gpkg-wal
 sitepredictor/finaldata.csv
 sitepredictor/finaldata copy.csv
 test.kml
+testtippecanoe.py
 openmaptiles-fonts/
 sitepredictor/ChatGPT-unofficial-api-selenium/
 sitepredictor/ChromeSelenium.app/
@@ -42,4 +44,4 @@ sitepredictor/testchatgpt.py
 sitepredictor/testviewshed.py
 sitepredictor/finaldata_dontchange.csv
 
-!uk-clipping.gpkg
+!uk--clipping.gpkg
