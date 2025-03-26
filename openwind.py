@@ -2192,7 +2192,7 @@ def buildTileserverFiles():
         style_name = dataset_style_lookup[dataset_name]['title']
 
         # If tippecanoe failed previously for any reason, delete the output and intermediary file
-        
+
         tippecanoe_interrupted_file = tippecanoe_output + '-journal'
         if isfile(tippecanoe_interrupted_file):
             os.remove(tippecanoe_interrupted_file)
@@ -2202,24 +2202,37 @@ def buildTileserverFiles():
 
             LogMessage("Creating mbtiles for: " + output_file)
 
-            if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
+            # if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
             
-            inputs = runSubprocess(["ogr2ogr", \
-                                    "-f", "GeoJSONSeq", \
-                                    tippecanoe_intermediary, \
-                                    tippecanoe_input ])
+            # inputs = runSubprocess(["ogr2ogr", \
+            #                         "-f", "GeoJSONSeq", \
+            #                         tippecanoe_intermediary, \
+            #                         tippecanoe_input ])
+
+            # inputs = runSubprocess(["tippecanoe", \
+            #                         "-Z4", "-z15", \
+            #                         "-X", \
+            #                         "--generate-ids", \
+            #                         "--force", \
+            #                         "-pt", \
+            #                         "-n", style_name, \
+            #                         "-l", dataset_name, \
+            #                         tippecanoe_intermediary, \
+            #                         "-o", tippecanoe_output ])
+
+            # if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
 
             inputs = runSubprocess(["tippecanoe", \
                                     "-Z4", "-z15", \
                                     "-X", \
                                     "--generate-ids", \
                                     "--force", \
+                                    "-pt", \
                                     "-n", style_name, \
                                     "-l", dataset_name, \
-                                    tippecanoe_intermediary, \
+                                    tippecanoe_input, \
                                     "-o", tippecanoe_output ])
 
-            if isfile(tippecanoe_intermediary): os.remove(tippecanoe_intermediary)
 
         if not isfile(tippecanoe_output):
             LogError("Failed to create mbtiles: " + basename(tippecanoe_output))
