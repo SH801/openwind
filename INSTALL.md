@@ -20,9 +20,9 @@
 
 The Open Wind toolkit has two flavours of build process:
 
-- **1. Docker-based**: The entire build is run within Docker instances. This is the recommended option as it helps to avoid installation issues.
+- **1. Docker-based**: The entire build is run within Docker instances. This is the recommended option as it helps avoid installation issues.
 
-- **2. Local (non-Docker) based**: All of the build runs without Docker. This may be desirable for performance reasons or when there is a need to quickly modify the codebase and / or resolve technical issues. There may, however, be a need to run Docker after the build has completed - in order to view results through a Dockerized tileserver. 
+- **2. Local (non-Docker) based**: All of the build runs without Docker. This may be desirable for performance reasons or when there is a need to quickly modify the codebase and / or resolve technical issues. There may, however, be a need to run Docker after the build has completed in order to view results through a Dockerized tileserver. 
 
 ## Software Platforms
 
@@ -182,7 +182,7 @@ Check `togeosjon` has installed correctly by typing:
 togeojson
 ```
 
-Clone project repo:
+Clone Open Wind project repository:
 
 ```
 git clone git@github.com:open-wind/openwind.git
