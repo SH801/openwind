@@ -2,17 +2,119 @@
 
 ## Software Required
 
-- PostGIS: For storing and processing GIS data
-- Python3.9: For compatibility with osm-export-tool
-- GDAL: For transferring data in and out of PostGIS
-- QGIS: For generating QGIS files
-- tilemaker: For generating mbtiles version of OpenStreetMap for use as background map within MapLibre-gl
-- tippecanoe: For generating optimized mbtiles versions of data layers for MapLibre-gl
-- Docker [not mandatory]: For previewing final data in tileserver-gl
+- [PostGIS](https://postgis.net/): For storing and processing GIS data.
 
-## Ubuntu
+- `Python3.9`: For compatibility with [osm-export-tool](https://github.com/hotosm/osm-export-tool-python).
 
-Install main software and libraries required to compile tilemaker and tippecanoe:
+- [GDAL](https://gdal.org): For transferring data in and out of PostGIS.
+
+- [QGIS](https://qgis.org/): For generating QGIS files.
+
+- [tilemaker](https://github.com/systemed/tilemaker): For generating mbtiles version of OpenStreetMap for use as background map within MapLibre-GL.
+
+- [tippecanoe](https://github.com/felt/tippecanoe): For generating optimized mbtiles versions of data layers for MapLibre-GL.
+
+- [Docker](https://www.docker.com/): For previewing final data in TileServer-GL - *desirable but not mandatory*.
+
+## Docker and Local (non-Docker) installs
+
+The Open Wind toolkit has two flavours of build process:
+
+- **1. Docker-based**: The entire build is run within Docker instances. This is the recommended option as it helps to avoid installation issues.
+
+- **2. Local (non-Docker) based**: All of the build runs without Docker. This may be desirable for performance reasons or when there is a need to quickly modify the codebase and / or resolve technical issues. There may, however, be a need to run Docker after the build has completed - in order to view results through a Dockerized tileserver. 
+
+## Software Platforms
+
+We have covered installations for Ubuntu and Mac OS below but the broad installation process should work for other platforms, especially when using a **Docker-based install**. 
+
+If you have specific success or issues running the Open Wind toolkit on other platforms, please drop us an email at support@openwind.org
+
+Next steps:
+
+- For Ubuntu, go to [1a. Ubuntu - All Installs](#1a-ubuntu---all-installs)
+
+- For Mac, go to [1b. Mac - All Installs](#1b-mac---all-installs)
+
+## 1a. Ubuntu - All Installs
+
+Install [QEMU](https://www.qemu.org/download/):
+
+```
+sudo apt-get update
+sudo apt install qemu-user-static binfmt-support
+```
+
+Install Docker using [these official instructions](https://docs.docker.com/engine/install/ubuntu/) or with:
+```
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+```
+
+### Next steps:
+
+- If you want to create a **Docker-based Install**, go to section [2. All Platforms - Docker-based Install -> Build -> View](#2-all-platforms---docker-based-install---build---view).
+
+- If you want to create a **Local (non-Docker) Install**, go to section [3a. Ubuntu - Local (non-Docker) install](#3a-ubuntu---local-non-docker-install).
+
+## 1b. Mac - All Installs
+
+Install [QEMU](https://www.qemu.org/download/):
+
+```
+brew install qemu
+```
+
+Install Docker using [these official instructions](https://docs.docker.com/desktop/setup/install/mac-install/) or with:
+```
+brew install docker
+```
+### Next steps:
+
+- If you want to create a **Docker-based Install**, go to section [2. All Platforms - Docker-based Install -> Build -> View](#2-all-platforms---docker-based-install---build---view).
+
+- If you want to create a **Local (non-Docker) Install**, go to section [3b. Mac - Local (non-Docker) install](#3b-mac---local-non-docker-install).
+
+## 2. All Platforms - Docker-based Install -> Build -> View
+
+If you're running the Open Wind toolkit in the **Docker-based** mode, run the Open Wind build stage by typing:
+```
+./build-docker.sh
+```
+This will use a default value (124.25 metres) for the turbine height to tip. 
+
+Alternatively, specify the turbine height to tip by adding it to the prompt:
+```
+./build-docker.sh [HEIGHT TO TIP]
+```
+For example:
+```
+./build-docker.sh 99.5
+./build-docker.sh 129
+./build-docker.sh 149.9
+``` 
+Once the build has completed (10-20 hours), view the final Open Wind constraint layers by running:
+```
+./run-docker.sh
+```
+Or alternatively open the QGIS file located at `build-docker/windconstraints--latest.qgs`.
+
+### Next steps:
+
+- Your installation is complete!
+
+## 3a. Ubuntu - Local (non-Docker) Install
+
+Install `PostGIS`, `Python3.9`, `GDAL`, general software and libraries required to compile `tilemaker` and `tippecanoe`:
 
 ```
 sudo add-apt-repository ppa:deadsnakes/ppa
@@ -20,13 +122,35 @@ sudo apt update
 sudo apt install  gnupg software-properties-common cmake make g++ dpkg ca-certificates \
                   libbz2-dev libpq-dev libboost-all-dev libgeos-dev libtiff-dev libspatialite-dev \
                   liblua5.4-dev rapidjson-dev libshp-dev libgdal-dev shapelib \
-                  spatialite-bin sqlite3 lua5.4 gdal-bin \
+                  spatialite-bin sqlite3 lua5.4 gdal-bin virtualenv \
                   zip unzip curl nano wget pip git nodejs npm proj-bin \
                   postgresql-postgis qgis qgis-plugin-grass \
                   python3.9 python3.9-dev python3.9-venv python3-gdal -y
 ```
+Install `tippecanoe` with:
 
-Install tilemaker and tippecanoe for building mbtiles vector tiles:
+```
+git clone https://github.com/felt/tippecanoe
+cd tippecanoe
+make -j
+sudo make install
+cd ..
+```
+Check `tippecanoe` has installed correctly by typing:
+```
+tippecanoe --help
+```
+Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
+
+## 3b. Mac - Local (non-Docker) Install
+
+Install `PostGIS`, `Python3.9`, `GDAL`, `tippecanoe`, general software and libraries required to compile `tilemaker`:
+
+```
+brew install postgis python@3.9 gdal tippecanoe cmake make geos rapidjson gqis \
+libpq libtiff libspatialite lua shapelib sqlite curl proj node npm virtualenv
+```
+Install `tilemaker` with:
 
 ```
 git clone https://github.com/systemed/tilemaker.git
@@ -34,19 +158,15 @@ cd tilemaker
 make
 sudo make install
 cd ..
-
-git clone https://github.com/mapbox/tippecanoe.git
-cd tippecanoe
-make -j
-sudo make install
-cd ..
 ```
-
-Check they have both installed correctly by typing:
+Check `tilemaker` has installed correctly by typing:
 ```
 tilemaker --help
-tippecanoe --help
 ```
+
+Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
+
+# 4. All Platforms - Local (non-Docker) Install
 
 Install Node Version Manager (`nvm`) and `togeojson`:
 ```
@@ -61,29 +181,44 @@ Check `togeosjon` has installed correctly by typing:
 ```
 togeojson
 ```
-Clone OpenWind project repo, create Python virtual environment and install required Python libraries:
+
+Clone project repo:
+
 ```
-git clone git@github.com:SH801/openwind.git
+git clone git@github.com:open-wind/openwind.git
 cd openwind
+```
+
+Copy environment file template `.env-template` to `.env` and activate a Python 3.9 virtual environment:
+```
 cp .env-template .env
 
-/usr/bin/python3.9 -m venv venv
-source venv/bin/activate
+which python3.9
+[PATH OUTPUT]
 
+virtualenv -p [PATH OUTPUT FROM ABOVE] venv
+
+source venv/bin/activate
+```
+Install the correct version of `GDAL` Python module so it exactly matches installed version of `GDAL`:
+```
 pip3 install gdal==`gdal-config --version`
+```
+Install Python module dependencies of Open Wind toolkit:
+```
 pip3 install -r requirements.txt
+```
+Install `osm-export-tool` Python module without dependencies:
+```
 pip3 install git+https://github.com/hotosm/osm-export-tool-python --no-deps
 ```
-
-Set up PostGIS:
+Set up new PostGIS database - when prompted use password `password` or enter a different password and edit the `.env` file accordingly:
 ```
 sudo -u postgres createuser -P openwind
 sudo -u postgres createdb -O openwind openwind
 sudo -u postgres psql -d openwind -c 'CREATE EXTENSION postgis;'
 sudo -u postgres psql -d openwind -c 'GRANT ALL PRIVILEGES ON DATABASE openwind TO openwind;'
 ```
-When prompted use password `password` -  or enter a different password and edit the `POSTGRES_PASSWORD` field in `.env` file accordingly.
-
 Install folder of openmaptiles fonts:
 ```
 git clone https://github.com/openmaptiles/fonts
@@ -91,29 +226,33 @@ cd fonts
 npm install
 node ./generate.js
 ```
-If you experience problems compiling openmaptiles fonts, generate the same fonts using a temporary Docker instance:
+If you experience problems compiling openmaptiles fonts, you will need to add `--skipfonts` argument to all subsequent build commands - this will instruct the build process to use a CDN version of openmaptiles fonts. For example:
 ```
-docker buildx build --platform linux/amd64 -t openwind-fonts -f openwind-fonts.dockerfile .
-docker run -v $(PWD)/build-cli/:/build-docker/ openwind-fonts
+./build-cli.sh 149.9 --skipfonts
 ```
-Note: this Docker instance uses platform emulation (`linux/amd64`) to avoid compilation issues affecting Silicon architectures.
 
-Finally to view final results of the data pipeline through a Docker version of tileserver-gl, install Docker:
+## 5. All Platforms - Local (non-Docker) Install -> Build -> View
 
+To run the Open Wind build stage in **Local (non-Docker)** mode, type:
 ```
-sudo apt-get update
-sudo apt-get install ca-certificates curl
-sudo install -m 0755 -d /etc/apt/keyrings
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-sudo chmod a+r /etc/apt/keyrings/docker.asc
-
-# Add the repository to Apt sources:
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt-get update
-
-sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+./build-cli.sh
 ```
-Alternatively, install `tileserver-gl` without Docker using [these instructions](https://github.com/maptiler/tileserver-gl)
+This will use a default value (124.25 metres) for the turbine height to tip. 
+
+Alternatively, explicitly specify the turbine height to tip by adding it to the prompt:
+```
+./build-cli.sh [HEIGHT TO TIP]
+```
+For example:
+```
+./build-cli.sh 99.5
+./build-cli.sh 129
+./build-cli.sh 149.9
+``` 
+Once the build has completed (10-20 hours), view the final Open Wind constraint layers by running:
+```
+./run-cli.sh
+```
+This runs a Docker-containerized version of the TileServer-GL tileserver to serve up `mbtiles` layers to a simple web map. 
+
+Alternatively, you can view the final layers without using Docker by opening the QGIS file located at `build-cli/windconstraints--latest.qgs`.

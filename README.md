@@ -53,7 +53,7 @@ Then view a simple map showing the final datasets by opening a web browser and e
 http://localhost:8000
 ```
 
-To install Open Wind toolkit on your computer without Docker, see [INSTALL.md](INSTALL.md).
+In the event of build issues or to install Open Wind toolkit on your computer without Docker, see [INSTALL.md](INSTALL.md).
 
 ## Turbine-specific wind site constraints
 
@@ -170,7 +170,7 @@ If you need to modify the environment variables in `.env` script - for example t
 
 - `CKAN_URL`: URL of CKAN Open Data Portal to use to define wind (or other asset) site constraints.
 
-- `QGIS_PREFIX_PATH`: Filesystem prefix to QGIS (see [Using PyQGIS in standalone scripts](https://docs.qgis.org/3.40/en/docs/pyqgis_developer_cookbook/intro.html)).
+- `QGIS_PREFIX_PATH`: Filesystem prefix to QGIS (see [Using PyQGIS in standalone scripts](https://docs.qgis.org/3.40/en/docs/pyqgis_developer_cookbook/intro.html#using-pyqgis-in-standalone-scripts)).
 
 - `QGIS_PYTHON_PATH`: Absolute path to specific version of Python3 that QGIS uses, eg. `/usr/bin/python3`.
 
@@ -215,7 +215,7 @@ The toolkit downloads open source datasets from third party websites, eg. Histor
 ### 3. Process imported datasets
 For each imported dataset in PostGIS, the toolkit adds buffers where appropriate, clips each dataset to a predefined clipping path (currently UK coastline) and dissolves overlapping geometries. The toolkit then amalgamates geographically-specifically database tables to create a single unified table for the entire target area. 
 
-For example the following tables will be amalgamated to create the table `tipheight_any__national_parks`.
+For example, the following tables will be amalgamated to create the table `tipheight_any__national_parks`:
 
 ```
 national_parks__scotland__pro
@@ -224,9 +224,9 @@ national_parks__wales__pro
 national_parks__northern_ireland__pro
 ```
 
- The toolkit then amalgamates tables by *group*, as defined in the Open Wind open data portal [data.openwind.energy](https://data.openwind.energy) (see for example the group [Landscape and visual impacts](https://data.openwind.energy/group/landscape-and-visual-impacts)). 
+ The toolkit then amalgamates tables by *group*, as defined in the Open Wind open data portal [data.openwind.energy](https://data.openwind.energy) (see, for example, the group [Landscape and visual impacts](https://data.openwind.energy/group/landscape-and-visual-impacts)). 
  
- For example the following tables will be amalgamated to create the table `tipheight_any__landscape_and_visual_impacts`:
+The following tables, for example, will be amalgamated to create the table `tipheight_any__landscape_and_visual_impacts`:
 
 ```
 tipheight_any__areas_of_outstanding_natural_beauty
@@ -237,7 +237,7 @@ tipheight_any__national_parks
 Final layers are then amalgamated into a single `tipheight_[HEIGHT TO TIP]__windconstraints` database table that defines overall site constraints for a turbine with height **[HEIGHT TO TIP]**.
 
 ### 4. Export final layers
-All PostGIS tables with prefix `tipheight_` will be exported as `GeoJSON`, `ESRI Shapefile`, `GeoPackage` and MapBox Vector Tiles (`mbtiles`). As the final wind constraint datasets are often highly detailed and interconnected, [Tippecanoe](https://github.com/felt/tippecanoe) is used to create optimized MapBox Vector Tiles that provide the best/fastest user experience.
+All PostGIS tables with prefix `tipheight_` will be exported as `GeoJSON`, `ESRI Shapefile`, `GeoPackage` and MapBox Vector Tiles (`mbtiles`). As the final wind constraint datasets are often highly detailed and interconnected, [Tippecanoe](https://github.com/felt/tippecanoe) is used to create optimized MapBox Vector Tiles that provide the most responsive user experience.
 
 In addition to exporting separate layers, a [QGIS](https://qgis.org/) file is also generated that provides an overview of the latest exported layers. The QGIS file uses `GeoPackage` files in the `[build-folder]/output/` and does not require a tileserver to be running.
 
@@ -260,7 +260,7 @@ To change the source CKAN open data portal the toolkit uses, set the `CKAN_URL` 
 CKAN_URL=https://data.otherdomain
 ```
 
-You should also add custom fields to the new CKAN instance using the following specification:
+You can also add custom fields to the CKAN instance that modify toolkit processing using the following specification:
 
 ### Open Data Portal ([CKAN](https://ckan.org/)) Custom Fields
 
@@ -278,6 +278,7 @@ The following custom fields are used within the [CKAN](https://ckan.org/) [Open 
 ## Contact
 
 info@openwind.energy
+
 https://openwind.energy
 
 ## Copyright
