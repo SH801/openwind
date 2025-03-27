@@ -1550,9 +1550,7 @@ def downloaddatasets_singlepass(ckanurl, output_folder):
                                     "-s_srs", orig_srs, \
                                     "-t_srs", WORKING_CRS])
 
-                os.remove(temp_output_file)
-                # intermediary_file = output_file.replace('.geojson', '.gfs')
-                # if isfile(intermediary_file): os.remove(intermediary_file) # Intermediary file created by ogr2ogr
+                # os.remove(temp_output_file)
 
 def purgeall():
     """
