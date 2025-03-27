@@ -15,7 +15,8 @@ RUN apt update
 RUN apt install gnupg software-properties-common cmake make g++ dpkg \
                 libbz2-dev libpq-dev libboost-all-dev libgeos-dev libtiff-dev libspatialite-dev \
                 libsqlite3-dev libcurl4-gnutls-dev liblua5.4-dev rapidjson-dev libshp-dev libgdal-dev gdal-bin \
-                zip unzip lua5.4 shapelib ca-certificates curl nano wget pip git nodejs npm proj-bin spatialite-bin sqlite3 -y
+                zip unzip lua5.4 shapelib ca-certificates curl nano wget pip git nodejs npm proj-bin spatialite-bin sqlite3 \
+                qgis qgis-plugin-grass -y
 RUN apt update; exit 0
 
 
@@ -27,17 +28,8 @@ RUN npm install -g @mapbox/togeojson
 # Install Python3.9
 
 RUN add-apt-repository ppa:deadsnakes/ppa
-RUN apt update
-RUN apt install python3.9 python3.9-dev python3.9-venv python3-gdal -y
-
-
-# Install QGIS
-
-WORKDIR /usr/src/openwind
-COPY qgis.sources /etc/apt/sources.list.d/qgis.sources
-RUN wget -O /etc/apt/keyrings/qgis-archive-keyring.gpg https://download.qgis.org/downloads/qgis-archive-keyring.gpg
 RUN apt update -y; exit 0
-RUN apt install qgis qgis-plugin-grass -y
+RUN apt install python3.9 python3.9-dev python3.9-venv python3-gdal -y
 
 
 # Install tilemaker

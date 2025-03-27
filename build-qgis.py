@@ -16,6 +16,14 @@ if 'QGIS_PREFIX_PATH' in os.environ: QGIS_PREFIX_PATH = os.environ['QGIS_PREFIX_
 QGIS_OUTPUT_FILE = BUILD_FOLDER + "windconstraints--latest.qgs"
 if len(sys.argv) > 1: QGIS_OUTPUT_FILE = sys.argv[1]
 
+
+# We can only set these environment variables now as setting them
+# in original .env file caused problems with ogr2ogr in main openwind.py script
+
+if 'QGIS_PROJ_DATA' in os.environ: os.environ['PROJ_DATA'] = os.environ['QGIS_PROJ_DATA']
+if 'QGIS_PROJ_LIB' in os.environ: os.environ['PROJ_LIB'] = os.environ['QGIS_PROJ_LIB']
+
+
 os.environ['QT_QPA_PLATFORM'] = 'offscreen'
 os.environ['XDG_RUNTIME_DIR'] = '/tmp/runtime-root'
 

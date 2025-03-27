@@ -258,15 +258,15 @@ If you are running the correct QGIS version of Python, this should return withou
 ```
 ModuleNotFoundError: No module named 'qgis' <-- **** ERROR IF INCORRECT QGIS_PYTHON_PATH
 ```
-If you see a "Cannot find proj.db" error message, you will need to set the `PROJ_DATA` environment variable in `.env` to the folder of your `PROJ` library containing `proj.db`:
+If you see a "Cannot find proj.db" error message, you will need to set the `QGIS_PROJ_DATA` environment variable in `.env` to the folder of your `PROJ` library containing `proj.db`:
 ```
 PROJ_DATA=/path/to/proj/
 ```
-To find potential values for `PROJ_DATA`, type:
+To find potential values for `QGIS_PROJ_DATA`, type:
 ```
 sudo find / -name proj.db
 ```
-Once you have set the value of `PROJ_DATA` in `.env`, reload environment variables in `.env` and attempt to run QGIS Python again:
+Once you have set the value of `QGIS_PROJ_DATA` in `.env`, reload environment variables in `.env` and attempt to run QGIS Python again:
 ```
 source ./.env
 
