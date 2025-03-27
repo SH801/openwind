@@ -1695,7 +1695,7 @@ def processdownloads(output_folder):
 
         LogMessage("Creating output grid overlay to improve performance and rendering quality")
 
-        postgisExec("CREATE TABLE %s AS SELECT (ST_SquareGrid(%s, ST_Transform(geom, 3857))).* FROM %s;", 
+        postgisExec("CREATE TABLE %s AS SELECT ST_Transform((ST_SquareGrid(%s, ST_Transform(geom, 3857))).geom, 4326) geom FROM %s;", 
                     (AsIs(OUTPUT_GRID_TABLE), AsIs(OUTPUT_GRID_SPACING), AsIs(clipping_union_table), ))
 
     # Import OSM-specific data files

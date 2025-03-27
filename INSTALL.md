@@ -140,7 +140,8 @@ Check `tippecanoe` has installed correctly by typing:
 ```
 tippecanoe --help
 ```
-Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
+### Next steps:
+- Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
 
 ## 3b. Mac - Local (non-Docker) Install
 
@@ -164,11 +165,13 @@ Check `tilemaker` has installed correctly by typing:
 tilemaker --help
 ```
 
-Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
+### Next steps:
+
+- Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
 
 # 4. All Platforms - Local (non-Docker) Install
 
-Install Node Version Manager (`nvm`) and `togeojson`:
+### Install Node Version Manager (`nvm`) and `togeojson`:
 ```
 curl --silent -o- https://raw.githubusercontent.com/creationix/nvm/v0.31.2/install.sh | bash
 source ~/.bashrc
@@ -182,7 +185,7 @@ Check `togeosjon` has installed correctly by typing:
 togeojson
 ```
 
-Clone Open Wind project repository:
+### Clone Open Wind project repository:
 
 ```
 git clone git@github.com:open-wind/openwind.git
@@ -194,31 +197,108 @@ Copy environment file template `.env-template` to `.env` and activate a Python 3
 cp .env-template .env
 
 which python3.9
-[PATH OUTPUT]
+[PATH TO PYTHON 3.9]
 
-virtualenv -p [PATH OUTPUT FROM ABOVE] venv
+virtualenv -p [PATH TO PYTHON 3.9 - FROM ABOVE] venv
 
 source venv/bin/activate
 ```
-Install the correct version of `GDAL` Python module so it exactly matches installed version of `GDAL`:
+
+### Install correct version of `GDAL`
+Install correct version of `GDAL` Python module so it exactly matches installed (non-Python) version of `GDAL`:
 ```
 pip3 install gdal==`gdal-config --version`
 ```
-Install Python module dependencies of Open Wind toolkit:
+
+### Install Python modules required for Open Wind
 ```
 pip3 install -r requirements.txt
-```
-Install `osm-export-tool` Python module without dependencies:
-```
 pip3 install git+https://github.com/hotosm/osm-export-tool-python --no-deps
 ```
-Set up new PostGIS database - when prompted use password `password` or enter a different password and edit the `.env` file accordingly:
+
+### Set QGIS environment variables
+Edit `.env` file and set `QGIS_PREFIX_PATH` and `QGIS_PYTHON_PATH` environment variables for QGIS:
+```
+QGIS_PREFIX_PATH=[ABSOLUTE PATH TO FOLDER CONTAINING QGIS]
+QGIS_PYTHON_PATH=[ABSOLUTE PATH TO QGIS VERSION OF PYTHON3]
+```
+Typical values for these variables are:
+```
+[Ubuntu]
+
+QGIS_PREFIX_PATH=/usr/
+QGIS_PYTHON_PATH=/usr/bin/python3
+
+
+[Mac]
+
+QGIS_PREFIX_PATH=/Applications/QGIS.app/Contents/MacOS/
+QGIS_PYTHON_PATH=/Applications/QGIS.app/Contents/MacOS/bin/python3
+```
+To ensure you have the correct `QGIS_PYTHON_PATH` value, enter it into the command line. For example:
+```
+/usr/bin/python3
+
+or
+
+/Applications/QGIS.app/Contents/MacOS/bin/python3
+```
+This should load QGIS's version of Python:
+```
+Python 3.9.5 (default, Sep 10 2021, 16:18:19) 
+[Clang 12.0.5 (clang-1205.0.22.11)] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> 
+```
+Enter the following to atempt to load the QGIS Python module:
+```
+from qgis.core import (QgsProject)
+```
+If you are running the correct QGIS version of Python, this should return without generating a `ModuleNotFoundError` message like:
+```
+ModuleNotFoundError: No module named 'qgis' <-- **** ERROR IF INCORRECT QGIS_PYTHON_PATH
+```
+If you see a "Cannot find proj.db" error message, you will need to set the `PROJ_DATA` environment variable in `.env` to the folder of your `PROJ` library containing `proj.db`:
+```
+PROJ_DATA=/path/to/proj/
+```
+To find potential values for `PROJ_DATA`, type:
+```
+sudo find / -name proj.db
+```
+Once you have set the value of `PROJ_DATA` in `.env`, reload environment variables in `.env` and attempt to run QGIS Python again:
+```
+source ./.env
+
+
+/usr/bin/python3
+
+[or] 
+
+/Applications/QGIS.app/Contents/MacOS/bin/python3
+
+[or]
+
+/your/path/to/QGIS/python
+
+
+[When Python loads, enter:]
+
+from qgis.core import (QgsProject)
+```
+This should load the `qgis.core` Python module without generating errors. If so, press `CTRL-D` to quit QGIS Python and continue with the installation process.
+
+### Set up PostGIS
+Enter the commands below to set up a new PostGIS database for Open Wind:
 ```
 sudo -u postgres createuser -P openwind
 sudo -u postgres createdb -O openwind openwind
 sudo -u postgres psql -d openwind -c 'CREATE EXTENSION postgis;'
 sudo -u postgres psql -d openwind -c 'GRANT ALL PRIVILEGES ON DATABASE openwind TO openwind;'
 ```
+When prompted, use password `password` - or enter a different password and edit the `POSTGRES_PASSWORD` variable in the `.env` file accordingly.
+
+### Install openmaptiles fonts
 Install folder of openmaptiles fonts:
 ```
 git clone https://github.com/openmaptiles/fonts
@@ -226,10 +306,15 @@ cd fonts
 npm install
 node ./generate.js
 ```
-If you experience problems compiling openmaptiles fonts, you will need to add `--skipfonts` argument to all subsequent build commands - this will instruct the build process to use a CDN version of openmaptiles fonts. For example:
+If you experience problems compiling openmaptiles fonts, you will need to add the `--skipfonts` argument to all build commands:
 ```
 ./build-cli.sh 149.9 --skipfonts
 ```
+This will instruct the build process to avoid attempting an install of openmaptiles fonts and will use a CDN version of the necessary fonts instead.
+
+### Next steps:
+
+- Go to 
 
 ## 5. All Platforms - Local (non-Docker) Install -> Build -> View
 
