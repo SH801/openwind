@@ -28,6 +28,7 @@ sitepredictor/finaldata copy.csv
 test.kml
 testtippecanoe.py
 openmaptiles-fonts/
+sitepredictor/local_newspapers.xlsx
 sitepredictor/ChatGPT-unofficial-api-selenium/
 sitepredictor/ChromeSelenium.app/
 sitepredictor/convertplanit.py

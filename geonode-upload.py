@@ -672,7 +672,7 @@ def getWMTSLayerItem(group_id, title, dataset_name, visibility, opacity):
 
     global TILESERVER_URL
 
-    dataset_name = 'basic'
+    # dataset_name = 'basic'
     
     if TILESERVER_URL.endswith('/'): TILESERVER_URL = TILESERVER_URL[:-1]
 
@@ -1053,7 +1053,8 @@ def createWMTSMapGeoNode():
         print(response)
 
 
-WMTS_ONLY = True
+WMTS_ONLY = False
+
 if WMTS_ONLY:
     createWMTSMapGeoNode()
 else:

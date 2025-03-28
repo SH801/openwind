@@ -53,6 +53,10 @@ Then view a simple map showing the final datasets by opening a web browser and e
 http://localhost:8000
 ```
 
+To see this map on the internet, go to [https://map.openwind.energy](https://map.openwind.energy). 
+
+Note: the live map has been produced using the Open Wind toolkit with no changes to the underlying source code or HTML.
+
 In the event of build issues or to install Open Wind toolkit on your computer without Docker, see [INSTALL.md](INSTALL.md).
 
 ## Turbine-specific wind site constraints

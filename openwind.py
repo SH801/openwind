@@ -1549,8 +1549,7 @@ def downloaddatasets_singlepass(ckanurl, output_folder):
                                     temp_output_file, \
                                     "-s_srs", orig_srs, \
                                     "-t_srs", WORKING_CRS])
-
-                # os.remove(temp_output_file)
+                os.remove(temp_output_file)
 
 def purgeall():
     """
