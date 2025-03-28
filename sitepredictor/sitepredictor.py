@@ -1674,13 +1674,55 @@ def getOverlapMetrics(source_table, overlay_table):
     postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_3 + '_idx'), AsIs(scratch_table_3), ))
 
     results = postgisGetResultsAsDict("""
-    SELECT ST_GeometryType(geom), COUNT(*) number, SUM(ST_Length(geom)) line_length, SUM(ST_Area(geom)) area FROM %s GROUP BY ST_GeometryType(geom);
+    SELECT ST_GeometryType(geom) geometrytype, COUNT(*) number, SUM(ST_Length(geom)) line_length, SUM(ST_Area(geom)) area FROM %s GROUP BY ST_GeometryType(geom);
     """, (AsIs(scratch_table_3), ))
 
-    # if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_3): postgisDropTable(scratch_table_3)
 
-    print(json.dumps(results, indent=4))
-    return results[0]
+    output_results = {
+        'number_points': 0,
+        'line_length': 0.0,
+        'area': 0.0
+    }
+
+    for result in results:
+        if result['geometrytype'] == 'ST_Point': output_results['number_points'] = result['number']
+        # Convert results into km or km2
+        if result['geometrytype'] == 'ST_LineString': output_results['line_length'] = result['line_length'] / 1000
+        if result['geometrytype'] == 'ST_Polygon': output_results['area'] = result['area'] / 1000000
+
+    return output_results
+
+def filterRelevantViewshedLayers(tables):
+    """
+    Due to computationally intensive nature of calculating viewshed overlaps, 
+    artificially restrict calculations to those layers we a priori think are 
+    likely to be relevant
+    """
+
+    relevant_layers = [ 'areas_of_outstanding_natural_beauty', \
+                        'conservation_areas', \
+                        'listed_buildings', \
+                        'local_nature_reserves', \
+                        'national_nature_reserves', \
+                        'national_parks', \
+                        'registered_historic_battlefields', \
+                        'registered_parks_and_gardens', \
+                        'scheduled_ancient_monuments', \
+                        'separation_distance_from_residential', \
+                        'special_areas_of_conservation', \
+                        'wild_land_areas', \
+                        'windturbines_operational', \
+                        'world heritage sites' ]
+
+    output_tables = []
+    for table in tables:
+        for relevant_layer in relevant_layers:
+            if relevant_layer in table: 
+                output_tables.append(table)
+                continue
+    
+    return output_tables
 
 def getViewshedOverlaps(position, height, categories):
     """
@@ -1688,6 +1730,12 @@ def getViewshedOverlaps(position, height, categories):
     """
 
     global VIEWSHED_RADIUS
+
+    # Artificially limit categories to save time 
+    # Not ideal... ideally you run things for every layer
+    # without judging in advance which might be relevant
+
+    categories = filterRelevantViewshedLayers(categories)
 
     # In some cases, we have mix of geometries and need to homogenise how
     # we count any overlap. For example listed buildings are polygons in England
@@ -1715,11 +1763,15 @@ def getViewshedOverlaps(position, height, categories):
 
     for feature in viewshed_geojson['features']:
         postgisExec("INSERT INTO %s VALUES (ST_Transform(ST_GeomFromGeoJSON(%s), 3857))", (AsIs(scratch_table_1), json.dumps(feature['geometry']), ))
-    
+
     postgisExec("CREATE TABLE %s AS SELECT ST_Union(geom) geom FROM %s;", (AsIs(scratch_table_2), AsIs(scratch_table_1), ))
     postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_2 + '_idx'), AsIs(scratch_table_2), ))
 
     overlap_values = {}
+
+    results = postgisGetResults("SELECT SUM(ST_Area(geom)) FROM %s;", (AsIs(scratch_table_1), ))
+    overlap_values["viewshed_" + str(int(VIEWSHED_RADIUS / 1000)) + "km_radius_total_area_km2"] = results[0][0] / 1000000
+
     for category in categories:
         geometrytype = getGeometryType(category)
         overlapmetrics = getOverlapMetrics(category, scratch_table_2)
@@ -1733,10 +1785,10 @@ def getViewshedOverlaps(position, height, categories):
                 finalvalue = additional_area + overlapmetrics['area']
         else:
             if geometrytype == 'ST_Point': 
-                parametername = 'pointcount'
+                parametername = 'number_points'
                 finalvalue = overlapmetrics['number_points']
             if geometrytype == 'ST_LineString': 
-                parametername = 'linelength'                
+                parametername = 'line_length'                
                 finalvalue = overlapmetrics['line_length']
             if geometrytype == 'ST_Polygon': 
                 parametername = 'area'
@@ -1744,13 +1796,12 @@ def getViewshedOverlaps(position, height, categories):
 
         if finalvalue is not None:
             readable_category = category.replace('__uk__pro__3857', '')
-            overlap_values[readable_category + "_viewshed_" + str(int(VIEWSHED_RADIUS / 1000)) + '_km_' + parametername] = finalvalue
+            overlap_values[readable_category + "_viewshed_" + str(int(VIEWSHED_RADIUS / 1000)) + 'km_radius_' + parametername] = finalvalue
 
-    # if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
-    # if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
 
     return overlap_values
-
 
 def getAllProjectNames():
     """
@@ -1952,14 +2003,6 @@ def runSitePredictor():
 
     tables_to_test = removeNonEssentialTablesForDistance(tables_to_test)
 
-    position = {'lng':-0.05560, 'lat': 50.86516 }
-    height = 120
-    viewsheds = getViewshedOverlaps(position, height, tables_to_test)
-
-    print(json.dumps(viewsheds, indent=4))
-
-    exit()
-
     # Create distance-to-turbine cache
     createDistanceCache(tables_to_test)
 
@@ -1969,7 +2012,7 @@ def runSitePredictor():
     # Therefore compute in advance / in background just to be safe
 
     createSamplingGrid()
-    computeSamplingGridDistances(tables_to_test)
+    # computeSamplingGridDistances(tables_to_test)
 
     # Get all failed and successful project names
     all_projectnames = getAllProjectNames()
@@ -2022,6 +2065,15 @@ def runSitePredictor():
 
         turbine['windspeed'] = getWindSpeed(turbine_lnglat)
         turbine['project_size'] = getProjectSize(turbine['project_guid'])
+
+        # Get viewshed visibility overlaps for (subset of) layers
+        # *** Currently selects subset of layers using filterRelevantViewshedLayers() 
+        # *** to save computation time but this is not ideal
+        # *** Ideally optimise computation and run on all layers 
+        # *** in order to avoid prejudging which might be salient
+
+        viewshedoverlaps = getViewshedOverlaps(turbine_lnglat, turbine['turbine_tipheight'], tables_to_test)
+        for viewshedoverlaps_key in viewshedoverlaps.keys(): turbine[viewshedoverlaps_key] = viewshedoverlaps[viewshedoverlaps_key]
 
         # Get demographics for a number of radius circles
         for census_radius in [10, 20, 30, 40]:        
