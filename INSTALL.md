@@ -90,7 +90,7 @@ If you're running the Open Wind toolkit in the **Docker-based** mode, run the Op
 ```
 ./build-docker.sh
 ```
-This will use a default value (124.25 metres) for the turbine height to tip. 
+This will use a default value (124.2 metres) for the turbine height to tip. 
 
 Alternatively, specify the turbine height to tip by adding it to the prompt:
 ```
@@ -114,7 +114,7 @@ Or alternatively open the QGIS file located at `build-docker/windconstraints--la
 
 ## 3a. Ubuntu - Local (non-Docker) Install
 
-Install `PostGIS`, `Python3.9`, `GDAL`, general software and libraries required to compile `tilemaker` and `tippecanoe`:
+Install `PostGIS`, `Python3.9`, `GDAL`, `QGIS`, general software and libraries required to compile `tilemaker` and `tippecanoe`:
 
 ```
 sudo add-apt-repository ppa:deadsnakes/ppa
@@ -140,6 +140,21 @@ Check `tippecanoe` has installed correctly by typing:
 ```
 tippecanoe --help
 ```
+
+Install `tilemaker` with:
+
+```
+git clone https://github.com/systemed/tilemaker.git
+cd tilemaker
+make
+sudo make install
+cd ..
+```
+Check `tilemaker` has installed correctly by typing:
+```
+tilemaker --help
+```
+
 ### Next steps:
 - Move to section [4. All Platforms - Local (non-Docker) Install](#4-all-platforms---local-non-docker-install).
 
@@ -188,7 +203,7 @@ togeojson
 ### Clone Open Wind project repository:
 
 ```
-git clone git@github.com:open-wind/openwind.git
+git clone https://github.com/open-wind/openwind.git
 cd openwind
 ```
 
@@ -314,7 +329,7 @@ This will instruct the build process to avoid attempting an install of openmapti
 
 ### Next steps:
 
-- Go to 
+- Go to [All Platforms - Local (non-Docker) Install](#5-all-platforms---local-non-docker-install---build---view)
 
 ## 5. All Platforms - Local (non-Docker) Install -> Build -> View
 
@@ -322,7 +337,7 @@ To run the Open Wind build stage in **Local (non-Docker)** mode, type:
 ```
 ./build-cli.sh
 ```
-This will use a default value (124.25 metres) for the turbine height to tip. 
+This will use a default value (124.2 metres) for the turbine height to tip. 
 
 Alternatively, explicitly specify the turbine height to tip by adding it to the prompt:
 ```

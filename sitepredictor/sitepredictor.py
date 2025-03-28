@@ -82,6 +82,8 @@ SEARCHAREA_BUFFER_CACHE             = {}
 CENSUS_SEARCH_RADIUS                = 10000
 TERRAIN_FILE                        = 'terrain_lowres_withfeatures.tif'
 DISTANCE_CACHE_TABLE                = 'sitepredictor__distance_cache'
+VIEWSHED_RADIUS                     = 20000
+GEOMETRY_TYPES_LOOKUP               = {}
 SAMPLING_DISTANCE                   = 1000.0
 SAMPLING_GRID                       = "sitepredictor__grid_1000_m__uk"
 SAMPLING_GRID_DISTANCES             = "sitepredictor__grid_1000_m_distances__uk"
@@ -488,7 +490,79 @@ def getElevation(position):
     elevation = elevation_value[0][0]
     return elevation, mapx, mapy
 
+def getViewshed(position, height_to_tip):
+    """
+    Generates viewshed for turbine of specific height at position (lng, lat)
+    """
 
+    global TERRAIN_FILE, VIEWSHED_RADIUS
+
+    uniqueid = str(position['lng']) + '_' + str(position['lat']) + '_' + str(height_to_tip)
+    elevation, observerX, observerY = getElevation(position)
+    turbinetip_outfile = '/vsimem/' + uniqueid + "_tip.tif"
+
+    src_ds = gdal.Open(TERRAIN_FILE)
+
+    gdal.ViewshedGenerate(
+        srcBand = src_ds.GetRasterBand(1),
+        driverName = 'GTiff',
+        targetRasterName = turbinetip_outfile,
+        creationOptions = [],
+        observerX = observerX,
+        observerY = observerY,
+        observerHeight = int(height_to_tip + 0.5),
+        targetHeight = 1.5,
+        visibleVal = 255.0,
+        invisibleVal = 0.0,
+        outOfRangeVal = 0.0,
+        noDataVal = 0.0,
+        dfCurvCoeff = 1.0,
+        mode = 1,
+        maxDistance = VIEWSHED_RADIUS) 
+
+    turbinetip_geojson = json.loads(polygonizeraster(uniqueid, turbinetip_outfile))
+
+    return turbinetip_geojson
+
+def reprojectrasterto4326(input_file, output_file):
+    warp = gdal.Warp(output_file, gdal.Open(input_file), dstSRS='EPSG:4326')
+    warp = None
+
+def read_file(filename):
+    vsifile = gdal.VSIFOpenL(filename,'r')
+    gdal.VSIFSeekL(vsifile, 0, 2)
+    vsileng = gdal.VSIFTellL(vsifile)
+    gdal.VSIFSeekL(vsifile, 0, 0)
+    return gdal.VSIFReadL(1, vsileng, vsifile)
+
+def polygonizeraster(uniqueid, raster_file):
+    memory_geojson = '/vsimem/' + uniqueid + ".geojson"
+    memory_transformed_raster = '/vsimem/' + uniqueid + '.tif'
+    reprojectrasterto4326(raster_file, memory_transformed_raster)
+
+    driver = ogr.GetDriverByName("GeoJSON")
+    ds = gdal.OpenEx(memory_transformed_raster)
+    raster_proj = ds.GetProjection()
+    ds = None
+    source_srs = osr.SpatialReference()
+    source_srs.ImportFromWkt(raster_proj)
+    src_ds = gdal.Open(memory_transformed_raster)
+    srs = osr.SpatialReference()
+    srs.ImportFromWkt(src_ds.GetProjection())    
+    srcband = src_ds.GetRasterBand(1)
+
+    dst_ds = driver.CreateDataSource(memory_geojson)
+    dst_layer = dst_ds.CreateLayer("viewshed", srs = source_srs)
+    newField = ogr.FieldDefn('Area', ogr.OFTInteger)
+    dst_layer.CreateField(newField)
+    polygonize = gdal.Polygonize(srcband, srcband, dst_layer, 0, [], callback=None )
+    polygonize = None
+    del dst_ds
+
+    geojson_content = read_file(memory_geojson)
+
+    return geojson_content
+    
 # ***********************************************************
 # ******************** PostGIS functions ********************
 # ***********************************************************
@@ -1571,6 +1645,113 @@ def getCountry(position):
     if geo_code.startswith("N"): return 'Northern Ireland'
     return None
 
+def getGeometryType(table):
+    """
+    Gets primary geometry type of table
+    """
+
+    global GEOMETRY_TYPES_LOOKUP
+
+    if table not in GEOMETRY_TYPES_LOOKUP: 
+
+        results = postgisGetResultsAsDict("SELECT ST_GeometryType(geom) type, COUNT(*) count FROM %s GROUP BY ST_GeometryType(geom) ORDER BY count DESC;", (AsIs(table), ))
+        GEOMETRY_TYPES_LOOKUP[table] = results[0]['type']
+
+    return GEOMETRY_TYPES_LOOKUP[table]
+
+def getOverlapMetrics(source_table, overlay_table):
+    """
+    Gets overlap between source_table and overlay_table and determines
+    total number of points, total length of lines and total area in overlapped area
+    """
+
+    scratch_table_3 = '_scratch_table_3'
+
+    if postgisCheckTableExists(scratch_table_3): postgisDropTable(scratch_table_3)
+
+    postgisExec("CREATE TABLE %s AS (SELECT (ST_Dump(ST_Intersection(source.geom, overlay.geom))).geom geom FROM %s source, %s overlay);", \
+                (AsIs(scratch_table_3), AsIs(source_table), AsIs(overlay_table), ))
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_3 + '_idx'), AsIs(scratch_table_3), ))
+
+    results = postgisGetResultsAsDict("""
+    SELECT ST_GeometryType(geom), COUNT(*) number, SUM(ST_Length(geom)) line_length, SUM(ST_Area(geom)) area FROM %s GROUP BY ST_GeometryType(geom);
+    """, (AsIs(scratch_table_3), ))
+
+    # if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+
+    print(json.dumps(results, indent=4))
+    return results[0]
+
+def getViewshedOverlaps(position, height, categories):
+    """
+    Gets visibility viewshed overlap of position for every category
+    """
+
+    global VIEWSHED_RADIUS
+
+    # In some cases, we have mix of geometries and need to homogenise how
+    # we count any overlap. For example listed buildings are polygons in England
+    # but points in Scotland so if we judge source table by most numerous 
+    # geometry type, we will discount less numerous - but still crucial - geometries
+    # Therefore:
+    # - Listed building points given 50 metre radius circle
+
+    specialcases = {
+        'listed_buildings__uk__pro__3857': {
+            'multiply_number_points_by_area': 3.14 * 50 * 50
+        }
+    }
+
+    scratch_table_1 = '_scratch_table_1'
+    scratch_table_2 = '_scratch_table_2'
+
+    viewshed_geojson = getViewshed(position, height)
+
+    if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+
+    postgisExec("CREATE TABLE %s (geom geometry)", (AsIs(scratch_table_1), ))
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_1 + '_idx'), AsIs(scratch_table_1), ))
+
+    for feature in viewshed_geojson['features']:
+        postgisExec("INSERT INTO %s VALUES (ST_Transform(ST_GeomFromGeoJSON(%s), 3857))", (AsIs(scratch_table_1), json.dumps(feature['geometry']), ))
+    
+    postgisExec("CREATE TABLE %s AS SELECT ST_Union(geom) geom FROM %s;", (AsIs(scratch_table_2), AsIs(scratch_table_1), ))
+    postgisExec("CREATE INDEX %s ON %s USING GIST (geom);", (AsIs(scratch_table_2 + '_idx'), AsIs(scratch_table_2), ))
+
+    overlap_values = {}
+    for category in categories:
+        geometrytype = getGeometryType(category)
+        overlapmetrics = getOverlapMetrics(category, scratch_table_2)
+        parametername, finalvalue = None, None
+
+        if category in specialcases:
+            rule = specialcases[category]
+            if 'multiply_number_points_by_area' in rule:
+                parametername = 'area'
+                additional_area = rule['multiply_number_points_by_area'] * overlapmetrics['number_points']
+                finalvalue = additional_area + overlapmetrics['area']
+        else:
+            if geometrytype == 'ST_Point': 
+                parametername = 'pointcount'
+                finalvalue = overlapmetrics['number_points']
+            if geometrytype == 'ST_LineString': 
+                parametername = 'linelength'                
+                finalvalue = overlapmetrics['line_length']
+            if geometrytype == 'ST_Polygon': 
+                parametername = 'area'
+                finalvalue = overlapmetrics['area']
+
+        if finalvalue is not None:
+            readable_category = category.replace('__uk__pro__3857', '')
+            overlap_values[readable_category + "_viewshed_" + str(int(VIEWSHED_RADIUS / 1000)) + '_km_' + parametername] = finalvalue
+
+    # if postgisCheckTableExists(scratch_table_1): postgisDropTable(scratch_table_1)
+    # if postgisCheckTableExists(scratch_table_2): postgisDropTable(scratch_table_2)
+
+    return overlap_values
+
+
 def getAllProjectNames():
     """
     Gets all project names ordered alphabetically
@@ -1770,6 +1951,14 @@ def runSitePredictor():
         tables_to_test.append(createTransformedTable(table))
 
     tables_to_test = removeNonEssentialTablesForDistance(tables_to_test)
+
+    position = {'lng':-0.05560, 'lat': 50.86516 }
+    height = 120
+    viewsheds = getViewshedOverlaps(position, height, tables_to_test)
+
+    print(json.dumps(viewsheds, indent=4))
+
+    exit()
 
     # Create distance-to-turbine cache
     createDistanceCache(tables_to_test)

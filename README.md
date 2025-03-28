@@ -61,7 +61,7 @@ In the event of build issues or to install Open Wind toolkit on your computer wi
 
 ## Turbine-specific wind site constraints
 
-By default the Open Wind toolkit creates onshore wind site constraints for turbines with a height to tip of **124.25 metres** - the average height to tip of all failed and successful pre-2025 wind turbine planning applications according to Open Wind's research. 
+By default the Open Wind toolkit creates onshore wind site constraints for turbines with a height to tip of **124.2 metres** - the average height to tip of all failed and successful pre-2025 wind turbine planning applications according to Open Wind's research. 
 
 To create wind site constraints for different turbines, add the height to tip value to the `build-docker.sh` prompt:
 

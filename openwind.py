@@ -75,7 +75,7 @@ if os.environ.get("QGIS_PYTHON_PATH") is not None: QGIS_PYTHON_PATH = os.environ
 if os.environ.get("CKAN_URL") is not None: CKAN_URL = os.environ.get('CKAN_URL')
 if os.environ.get("TILESERVER_URL") is not None: TILESERVER_URL = os.environ.get('TILESERVER_URL')
 
-DEFAULT_HEIGHT_TO_TIP           = 124.25 # Based on openwind's own manual data on all failed and successful UK onshore wind projects
+DEFAULT_HEIGHT_TO_TIP           = 124.2 # Based on openwind's own manual data on all failed and successful UK onshore wind projects
 HEIGHT_TO_TIP                   = DEFAULT_HEIGHT_TO_TIP
 OSM_MAIN_DOWNLOAD               = 'https://download.geofabrik.de/europe/united-kingdom-latest.osm.pbf'
 OSM_CONFIG_FOLDER               = BUILD_FOLDER + 'osm-export-yml/'
